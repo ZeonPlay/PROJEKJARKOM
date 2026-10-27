@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#070b17">
+    <title>NetTrack Realtime Chat</title>
+
+    <script src="crypto-js.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Halaman Autentikasi Split-Card -->
+    <div id="loginScreen" class="login-screen">
+        <div class="auth-container" id="authContainer">
+
+            <!-- Form Pendaftaran -->
+            <div class="form-container sign-up-container">
+                <form id="registerForm" class="auth-form-inner">
+                    <h2>Buat Akun Baru</h2>
+                    <span>Lengkapi data kamu untuk mendaftar</span>
+
+                    <input id="regNameInput" type="text" placeholder="Nama Lengkap" required />
+                    <input id="regUserIdInput" type="text" placeholder="ID Unik (misal: tegar_123)" required />
+                    <input id="regEmailInput" type="email" placeholder="Alamat Email" required />
+                    <input id="regPasswordInput" type="password" placeholder="Password" required />
+
+                    <button type="submit" class="auth-btn">Daftar Sekarang ➤</button>
+                </form>
+            </div>
+
+            <!-- Form Masuk / Login -->
+            <div class="form-container sign-in-container">
+                <form id="loginForm" class="auth-form-inner">
+                    <h2>Selamat Datang</h2>
+                    <span>Masuk dengan akun NetTrack kamu</span>
+
+                    <input id="loginEmailInput" type="email" placeholder="Alamat Email" required />
+                    <input id="loginPasswordInput" type="password" placeholder="Password" required />
+
+                    <button type="submit" class="auth-btn">Masuk Ke Aplikasi ➤</button>
+                </form>
+            </div>
+
+            <!-- Overlay Panel Bergeser -->
+            <div class="overlay-container">
+                <div class="overlay">
+                    <div class="overlay-panel overlay-left">
+                        <div class="logo">N</div>
+                        <h1>Sudah Punya Akun?</h1>
+                        <p>Silakan masuk untuk melanjutkan obrolan dan simulasi transmisi data kamu.</p>
+                        <button type="button" class="ghost-btn" id="toLoginBtn">Masuk di Sini</button>
+                    </div>
+
+                    <div class="overlay-panel overlay-right">
+                        <div class="logo">N</div>
+                        <h1>Belum Punya Akun?</h1>
+                        <p>Daftar sekarang untuk mulai menguji enkripsi pesan dan geolokasi IP secara real-time!</p>
+                        <button type="button" class="ghost-btn" id="toRegisterBtn">Daftar Akun Baru</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Aplikasi Utama -->
+    <main class="app" id="mainApp" hidden>
+        <aside class="sidebar">
+            <header class="brand">
+                <div class="logo">N</div>
+                <div>
+                    <h1>NetTrack</h1>
+                    <p>Komunikasi Data</p>
+                </div>
+            </header>
+
+            <div class="profile">
+                <div class="avatar" id="myAvatar">T</div>
+                <div class="profile-info">
+                    <strong id="myName">Tegar</strong>
+                    <span id="myIdDisplay">ID: tegar</span>
+                </div>
+                <span class="online-dot"></span>
+            </div>
+
+            <div class="search">
+                <button id="addContactBtn" class="send-button" type="button">➕ Tambah Teman via ID</button>
+                <input id="searchInput" type="text" placeholder="Cari kontak..." aria-label="Cari teman">
+            </div>
+
+            <div class="section-title">DAFTAR PERCAKAPAN</div>
+            <div id="contactList" class="contact-list"></div>
+
+            <div class="sidebar-footer">
+                <span class="online-dot"></span>
+                Server Terhubung
+            </div>
+        </aside>
+
+        <section class="chat-panel">
+            <header class="chat-header">
+                <div class="avatar" id="chatAvatar">?</div>
+                <div class="chat-person">
+                    <strong id="chatName">Pilih Kontak</strong>
+                    <span id="chatStatus">Koneksi Aktif</span>
+                </div>
+
+                <div class="info-tooltip-wrapper">
+                    <button id="infoButton" class="icon-button" type="button" title="Informasi IP">ⓘ</button>
+                    <div id="infoPanel" class="info-panel">
+                        <strong>Informasi Jaringan & IP User</strong>
+                        <p>IP Publik: <span id="ipAddress">Memuat...</span></p>
+                        <p>Perkiraan Lokasi IP: <span id="ipLocation">Memuat...</span></p>
+                    </div>
+                </div>
+            </header>
+
+            <div class="notice-bar">
+                NetTrack: Real-Time Transmission, NRZ-I Encoding & Signal Simulation
+            </div>
+
+            <div id="messages" class="messages" aria-live="polite"></div>
+
+            <!-- Modal Simulator -->
+            <div id="simModal" class="sim-modal" hidden>
+                <div class="sim-content">
+                    <div class="sim-header">
+                        <div>
+                            <h2>SIMULATOR TRANSMISI DATA (NRZ-I)</h2>
+                            <small>Simulasi Real-Time Alur Komunikasi Data</small>
+                        </div>
+                        <button id="closeSimBtn" class="close-btn" type="button">✕</button>
+                    </div>
+
+                    <div class="sim-card payload-card">
+                        <span class="sim-section-tag">01 / PAYLOAD PESAN</span>
+                        <h3 id="simCurrentTextDisplay">-</h3>
+                        <small class="sim-note">Setiap karakter dikonversi ke ASCII 7-bit dan dienkode ke sinyal digital NRZ-I.</small>
+                    </div>
+
+                    <div class="sim-card">
+                        <div class="sim-row">
+                            <div>
+                                <span class="sim-section-tag">02 / TRANSMISSION</span>
+                                <h3>Alur pengiriman data</h3>
+                            </div>
+                            <span id="txStatusBadge" class="badge-status-top">Siap</span>
+                        </div>
+                        <div class="tx-flex">
+                            <div class="tx-box">
+                                <strong>Pengirim</strong>
+                                <small>Sender</small>
+                                <span id="senderBadge" class="badge-status">Siap</span>
+                            </div>
+                            <div class="tx-line-container">
+                                <small>Kanal transmisi digital</small>
+                                <div class="tx-line">
+                                    <div id="movingBinaryBlock" class="moving-block" hidden>0000000</div>
+                                </div>
+                                <small id="txDetailText">Memulai transmisi...</small>
+                            </div>
+                            <div class="tx-box">
+                                <strong>Penerima</strong>
+                                <small>Receiver</small>
+                                <span id="receiverBadge" class="badge-status">Siap</span>
+                            </div>
+                        </div>
+                        <div class="progress-bar-wrap">
+                            <div id="txProgress" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-meta">
+                            <span id="progressPercent">0%</span>
+                            <span id="progressStatusText">Menunggu...</span>
+                        </div>
+                    </div>
+
+                    <div class="sim-card">
+                        <span class="sim-section-tag">03 / PROCESS</span>
+                        <h3>Tahapan komunikasi data</h3>
+                        <div class="steps-grid">
+                            <div class="step-card" id="step1"><span>01</span><strong>Input teks</strong><small>Pesan obrolan</small><div class="step-badge">Menunggu</div></div>
+                            <div class="step-card" id="step2"><span>02</span><strong>ASCII 7-bit</strong><small>Karakter ke biner</small><div class="step-badge">Menunggu</div></div>
+                            <div class="step-card" id="step3"><span>03</span><strong>Encoding NRZ-I</strong><small>Biner ke sinyal</small><div class="step-badge">Menunggu</div></div>
+                            <div class="step-card" id="step4"><span>04</span><strong>Transmisi</strong><small>Kirim via kanal</small><div class="step-badge">Menunggu</div></div>
+                            <div class="step-card" id="step5"><span>05</span><strong>Decoding NRZ-I</strong><small>Sinyal ke biner</small><div class="step-badge">Menunggu</div></div>
+                            <div class="step-card" id="step6"><span>06</span><strong>Biner ke ASCII</strong><small>Biner ke teks</small><div class="step-badge">Menunggu</div></div>
+                            <div class="step-card" id="step7"><span>07</span><strong>Data diterima</strong><small>Teks ditampilkan</small><div class="step-badge">Menunggu</div></div>
+                        </div>
+                    </div>
+
+                    <div class="sim-card">
+                        <span class="sim-section-tag">04 / DATA FRAME</span>
+                        <h3>Rincian data pengiriman</h3>
+                        <table class="frame-table">
+                            <thead>
+                                <tr><th>Karakter</th><th>Desimal ASCII</th><th>Data Biner (7 bit)</th></tr>
+                            </thead>
+                            <tbody id="frameTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="sim-card">
+                        <span class="sim-section-tag">05 / SIGNAL</span>
+                        <h3>Diagram Sinyal NRZ-I</h3>
+                        <canvas id="signalCanvas" width="800" height="120"></canvas>
+                        <p class="signal-desc">NRZ-I (Non-Return-to-Zero Inverted) merepresentasikan bit '1' sebagai perubahan level tegangan, dan bit '0' sebagai level tegangan yang tetap.</p>
+                    </div>
+
+                    <div class="sim-card">
+                        <span class="sim-section-tag">06 / RECEIVER</span>
+                        <h3>Hasil Pengolahan Data Penerima</h3>
+                        <div class="receiver-grid">
+                            <div class="rx-box"><label>Data Biner</label><div id="rxBinary" class="rx-val">-</div></div>
+                            <div class="rx-box"><label>ASCII Desimal</label><div id="rxAscii" class="rx-val">-</div></div>
+                            <div class="rx-box highlight"><label>Teks Diterima</label><div id="rxText" class="rx-val text-green">-</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form id="messageForm" class="composer">
+                <button type="button" id="locationBtn" class="icon-button" title="Bagikan Lokasi">📍</button>
+                <input id="messageInput" type="text" placeholder="Tulis pesan..." autocomplete="off" aria-label="Tulis pesan">
+                <button type="submit" class="send-button">Kirim ➤</button>
+            </form>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
